@@ -1,7 +1,5 @@
 /*IMPORTS*/
-#include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
-#include <string>
 #include <jled.h>
 
 /*CONSTS*/
@@ -9,8 +7,8 @@
 
 /*SETUP*/
 char auth[] = "faa3a3fc41bd4c2f90dfd9b7ffbfd3b8";
-char ssid[] = "jualabs-ap";
-char pass[] = "jualabsufrpe";
+char ssid[] = "dexbie-ap";
+char pass[] = "8hq8xba9";
 
 bool isFirstConnect = true;
 JLed led = JLed(D4);
@@ -18,10 +16,9 @@ int state = 6;
 
 void setup() {
   Serial.begin(9600);
-  led.On().Update();
+  programStatus();
   Blynk.begin(auth, ssid, pass);
   Blynk.virtualWrite(V0, "PedoRama");  
-  programStatus();
 }
 
 void programStatus() {
@@ -40,13 +37,25 @@ BLYNK_WRITE(V2) {
   changeMode(pinData);
 }
 
+BLYNK_WRITE(V3) {
+  int pinData = param.asInt();
+  Serial.print("Height: ");
+  Serial.println(pinData);
+}
+
+BLYNK_WRITE(V4) {
+  int pinData = param.asInt();
+  Serial.print("Weight: ");
+  Serial.println(pinData);
+}
+
 void loop() {
-  Blynk.run();
   led.Update();
+  Blynk.run();
 }
 
 /*FUNCTIONS*/
-void changeMode(pinData) {    
+void changeMode(int pinData) {    
   Serial.print(pinData);
   if (pinData == 1) {
     Serial.println("Pressed Modo");
