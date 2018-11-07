@@ -25,6 +25,7 @@ JLed led = JLed(D4);
 
 // program
 int state = 6;
+int stateValue[5] = {0};
 
 void setup() {
   Serial.begin(9600);
@@ -34,7 +35,7 @@ void setup() {
   calibrate();
   Blynk.begin(auth, ssid, pass);
   Blynk.virtualWrite(V0, "PedoRama");
-  Alarm.timerRepeat(1, pedometerLoop);
+  Alarm.timerOnce(1, pedometerLoop);
   Serial.println(">> End of setup");
 }
 
@@ -100,6 +101,12 @@ void changeView() {
   Blynk.virtualWrite(V0, statesName[state]);
 }
 
+void showData(int thisState) {
+  if (state == thisState) {
+    Blynk.virtualWrite(V1, stateValue[state]);  
+  }
+}
+
 /*END OF BLYNK FUNCTIONS*/
 
 /*PEDOMETER FUNCTIONS*/
@@ -117,6 +124,7 @@ float zavg;
 int steps, flag = 0;
 
 void pedometerLoop() {
+  Serial.println(">> Loop");
   float totvect[50]={0}; // vetor de aceleracao
   float totave[50]={0}; // vetor de medias
 
@@ -159,6 +167,13 @@ void pedometerLoop() {
     Serial.print("steps=");
     Serial.println(steps);
   }
+
+  if (steps > stateValue[0]) {
+    stateValue[0] = steps;
+    showData(0);
+  }
+  Alarm.timerOnce(1, pedometerLoop);
+
 }
 
 // Construir o filtro
