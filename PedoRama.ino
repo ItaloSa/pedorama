@@ -182,25 +182,26 @@ void pedometerLoop() {
   float userStepWidth = stepWidth(loopSteps, stateValue[4]); // calcula a largura do passo
   float nowDistance = calcNowDistance(loopSteps, userStepWidth);
   float speed = calcSpeed(nowDistance);
+  float calories = calcCalories(speed, stateValue[5]);
 
-  attInstantData(nowDistance, speed);
+  attInstantData(nowDistance, speed, calories);
 
   Alarm.timerOnce(2, pedometerLoop);
 
 }
 
-void attInstantData(float distance, float speed) {
+void attInstantData(float distance, float speed, float calories) {
   stateValue[0] = steps;
   showData(0);
 
   stateValue[1] += distance;
   showData(1);
 
-  if (speed != 0) {
-
-  }
   stateValue[3] = speed;
   showData(3);
+
+  stateValue[2] += calories;
+  showData(2);
 
 }
 
@@ -274,6 +275,14 @@ float calcNowDistance(int numStep,float userStepWidth){
 float calcSpeed(float distance){
   float speed = distance / 2;
   return speed;
+}
+
+float calcCalories(float speed, float userWeight) {
+  if (speed == 0) {
+    return 1 * userWeight / 1800;
+  } else {
+    return speed * userWeight / 400;
+  }
 }
 
 /*END OF PEDOMETER FUNCTIONS*/
