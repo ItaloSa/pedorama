@@ -25,18 +25,24 @@ JLed led = JLed(D4);
 
 // program
 int state = 6;
-int stateValue[5] = {0};
+float stateValue[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
 void setup() {
   Serial.begin(9600);
   Serial.println(">> Setup");
-  programStatus();
+  Blynk.begin(auth, ssid, pass);
+  homeScreen();
   accelSetup();
   calibrate();
-  Blynk.begin(auth, ssid, pass);
-  Blynk.virtualWrite(V0, "PedoRama");
   Alarm.timerOnce(1, pedometerLoop);
   Serial.println(">> End of setup");
+  Blynk.virtualWrite(V1, "done!");
+}
+
+void homeScreen() {
+  Blynk.virtualWrite(V0, "PedoRama");
+  Blynk.virtualWrite(V1, "wait...");
+  programStatus();
 }
 
 void accelSetup() {
@@ -47,7 +53,7 @@ void accelSetup() {
 }
 
 void programStatus() {
-  Blynk.notify("PedoRama Working!");
+  Blynk.notify("PedoRama iniciado!");
   led.Blink(900, 100).Forever().Update();
 }
 
@@ -68,12 +74,14 @@ BLYNK_WRITE(V3) {
   int pinData = param.asInt();
   Serial.print("Height: ");
   Serial.println(pinData);
+  stateValue[4] = pinData;
 }
 
 BLYNK_WRITE(V4) {
   int pinData = param.asInt();
   Serial.print("Weight: ");
   Serial.println(pinData);
+  stateValue[5] = pinData;
 }
 
 void loop() {
@@ -85,20 +93,21 @@ void loop() {
 
 /*BLYNK FUNCTIONS*/
 void changeMode(int pinData) {    
-  Serial.print(pinData);
   if (pinData == 1) {
-    Serial.println("Pressed Modo");
+    Serial.println("Pressed Modo:");
     state++;
     if (state > 5) {
       state = 0;
     }
+    Serial.println(state);
     changeView(); 
   }
 }
 
 void changeView() {
-  char statesName[6][10] = {"Steps", "Distance", "Calories", "Speed", "Height", "Weight"};
+  char statesName[6][16] = {"Steps", "Distance (m)", "Calories (Kcal)", "Speed (m/s)", "Height (cm)", "Weight (Kg)"};
   Blynk.virtualWrite(V0, statesName[state]);
+  showData(state);
 }
 
 void showData(int thisState) {
@@ -110,7 +119,7 @@ void showData(int thisState) {
 /*END OF BLYNK FUNCTIONS*/
 
 /*PEDOMETER FUNCTIONS*/
-float threshhold=25.0;
+float threshhold=50.0;
 
 // valores da calibracao 
 float xval[50]={0};
@@ -133,14 +142,16 @@ void pedometerLoop() {
   float yaccl[50]={0};
   float zaccl[50]={0};
 
+  int loopSteps = 0;
+
   for (int i=0;i<50;i++) {
     Vector normAccel = mpu.readNormalizeAccel();
     xaccl[i]=float(normAccel.XAxis);
-    delay(1);
+    
     yaccl[i]=float(normAccel.YAxis);
-    delay(1);
+    
     zaccl[i]=float(normAccel.ZAxis);
-    delay(1);
+    
 
     // calculo de min e max de cada eixo
     totvect[i] = sqrt(((xaccl[i]-xavg) * (xaccl[i]-xavg)) + ((yaccl[i] - yavg) * (yaccl[i] - yavg)) + ((zval[i] - zavg)* (zval[i] - zavg)));
@@ -149,30 +160,47 @@ void pedometerLoop() {
     totave[i] = (totvect[i] + totvect[i-1]) / 2 ;
 
     Serial.println(totave[i]);
-    delay(200);
 
     //cal steps 
     if (totave[i]>threshhold && flag==0) {
-      steps=steps+1;
+      //steps=steps+1;
+      loopSteps += 1;
       flag=1;
-    } else if (totave[i] > threshhold && flag==1) {
-      //do nothing 
     }
 
     if (totave[i] <threshhold  && flag==1) {
       flag=0;
     }
 
-    Serial.println('\n');
-    Serial.print("steps=");
-    Serial.println(steps);
   }
 
-  if (steps > stateValue[0]) {
-    stateValue[0] = steps;
-    showData(0);
+  steps += loopSteps;
+  Serial.println('\n');
+  Serial.print("steps=");
+  Serial.println(steps);
+
+  float userStepWidth = stepWidth(loopSteps, stateValue[4]); // calcula a largura do passo
+  float nowDistance = calcNowDistance(loopSteps, userStepWidth);
+  float speed = calcSpeed(nowDistance);
+
+  attInstantData(nowDistance, speed);
+
+  Alarm.timerOnce(2, pedometerLoop);
+
+}
+
+void attInstantData(float distance, float speed) {
+  stateValue[0] = steps;
+  showData(0);
+
+  stateValue[1] += distance;
+  showData(1);
+
+  if (speed != 0) {
+
   }
-  Alarm.timerOnce(1, pedometerLoop);
+  stateValue[3] = speed;
+  showData(3);
 
 }
 
@@ -211,6 +239,41 @@ void calibrate() {
   delay(100);
 
   Serial.println(">> Calibrado!");
+}
+
+// userHeight - m
+float stepWidth(float numStep, int userIntHeight) {
+  float userHeight = userIntHeight / 100;
+  float userStepWidth = 0;
+  if(numStep == 0 || numStep > 2) {
+    userStepWidth = userHeight / 5;
+  }
+  if(numStep == 2 || numStep < 3) {
+    userStepWidth = userHeight / 4;
+  }
+  if(numStep == 3 || numStep < 4) {
+    userStepWidth = userHeight / 3;
+  }
+  if(numStep == 4 || numStep < 5) {
+    userStepWidth = userHeight/2;
+  }
+  if(numStep == 6 || numStep < 8) {
+    userStepWidth = userHeight;
+  }
+  if(numStep >= 8) {
+    userStepWidth = userHeight * 1.2;
+  }
+  return userStepWidth; // m
+}
+
+float calcNowDistance(int numStep,float userStepWidth){
+  float distance = numStep * userStepWidth;
+  return distance;
+}
+
+float calcSpeed(float distance){
+  float speed = distance / 2;
+  return speed;
 }
 
 /*END OF PEDOMETER FUNCTIONS*/
